@@ -13,14 +13,40 @@ A modern, responsive landing page for a Nigerian health-focused NGO, built with 
 - Kubernetes manifests for production deployment
 - Automated CI/CD pipeline with GitHub Actions
 
-## Prerequisites
+### Hero Section
 
-- Node.js 18+ (for development)
-- Docker (for containerized development)
-- kubectl 1.25+ (for Kubernetes deployment)
-- kustomize 4.5+ (for environment-specific configurations)
-- Access to a Kubernetes cluster (for deployment)
+The hero section is the first visual element visitors encounter, designed to immediately communicate the NGO's mission and inspire action.
 
-## Local Development
+#### Purpose and Design
 
-1. Clone the repository:
+- **Full-width responsive layout**: Adapts seamlessly across mobile, tablet, and desktop devices
+- **Mission-focused messaging**: Clear, compelling headline and subtitle that communicate the NGO's purpose
+- **Dual call-to-action buttons**: Prominent "Donate Now" and "Become a Volunteer" buttons for immediate engagement
+- **Culturally appropriate imagery**: Background features Nigerian health workers and communities
+- **Optimized for low-bandwidth**: Images compressed and formatted for Nigerian internet conditions
+
+#### Image Requirements
+
+**Background Image Specifications:**
+- **Dimensions**: 
+  - Desktop: 1920x1080px (minimum)
+  - Tablet: 1024x768px
+  - Mobile: 768x1024px (portrait)
+- **Format**: WebP with JPEG fallback
+- **File Size**: 
+  - WebP: < 150KB (target), < 200KB (maximum)
+  - JPEG: < 250KB (maximum)
+- **Aspect Ratio**: 16:9 for desktop, 4:3 for tablet, 3:4 for mobile
+- **Content**: Should feature Nigerian health workers, communities, or healthcare settings
+- **Color Palette**: Should complement Nigerian green (#008751) theme
+
+#### Replacing Placeholder Images
+
+To replace the placeholder hero images with actual NGO images:
+
+1. **Prepare your images**:
+   - Optimize images using the guidelines in the "Image Optimization" section below
+   - Create both WebP and JPEG versions
+   - Name files: `hero-bg.webp` and `hero-bg.jpg`
+
+2. **Replace files**:

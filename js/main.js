@@ -11,6 +11,7 @@
  * - Lazy loading for images using Intersection Observer
  * - Form validation helpers for future contact forms
  * - Feature detection for older browsers
+ * - Hero section enhancements (smooth scroll, lazy loading, parallax, analytics)
  *
  * @generated-from: task-id:TASK-001 sprint:foundation
  * @modifies: index.html:v1.0.0
@@ -47,6 +48,8 @@ const CONFIG = Object.freeze({
   LAZY_LOAD_MARGIN: '50px',
   DEBOUNCE_DELAY: 150,
   LOG_PREFIX: '[HealthForAllNG]',
+  PARALLAX_SPEED: 0.5,
+  HERO_IMAGE_THRESHOLD: 0.1,
 })
 
 // ============================================
@@ -470,6 +473,238 @@ const initFormValidation = () => {
 }
 
 // ============================================
+// Hero Section Enhancements
+// ============================================
+
+/**
+ * Initializes hero section functionality
+ * Implements smooth scroll for CTA buttons, lazy loading for background image,
+ * optional parallax effect, and analytics tracking
+ */
+const initHeroSection = () => {
+  try {
+    const heroSection = safeQuerySelector('#hero-section')
+    const ctaButtons = safeQuerySelectorAll('.cta-button')
+
+    if (!heroSection) {
+      log('Hero section not found - skipping hero initialization', 'warn')
+      return
+    }
+
+    // ============================================
+    // 1. Smooth Scroll for CTA Buttons
+    // ============================================
+
+    /**
+     * Handles smooth scroll to target section when CTA button is clicked
+     * @param {Event} event - Click event
+     */
+    const handleCtaClick = (event) => {
+      const button = event.currentTarget
+      const href = button.getAttribute('href')
+
+      // Only handle internal anchor links
+      if (!href || !href.startsWith('#')) {
+        return
+      }
+
+      const target = safeQuerySelector(href)
+
+      if (!target) {
+        log(`CTA target not found: ${href}`, 'warn')
+        return
+      }
+
+      event.preventDefault()
+
+      // Calculate scroll position with offset
+      const targetPosition = target.getBoundingClientRect().top + window.pageYOffset
+      const offsetPosition = targetPosition - CONFIG.SCROLL_OFFSET
+
+      // Use native smooth scroll if supported
+      if (FEATURES.smoothScroll) {
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth',
+        })
+      } else {
+        // Fallback for older browsers
+        window.scrollTo(0, offsetPosition)
+      }
+
+      // Update focus for accessibility
+      target.setAttribute('tabindex', '-1')
+      target.focus()
+
+      // Track CTA click for analytics
+      trackCtaClick(button)
+
+      log(`CTA button clicked: ${href}`)
+    }
+
+    // Attach click handlers to all CTA buttons
+    ctaButtons.forEach((button) => {
+      button.addEventListener('click', handleCtaClick)
+    })
+
+    log(`Smooth scroll initialized for ${ctaButtons.length} CTA buttons`)
+
+    // ============================================
+    // 2. Lazy Loading for Hero Background Image
+    // ============================================
+
+    /**
+     * Loads high-resolution hero background image when section is in viewport
+     * Uses Intersection Observer for performance
+     */
+    const initHeroImageLazyLoad = () => {
+      if (!FEATURES.intersectionObserver) {
+        log('Intersection Observer not supported - hero image loaded immediately', 'warn')
+        return
+      }
+
+      // Check if hero section already has background image loaded
+      const currentBgImage = window.getComputedStyle(heroSection).backgroundImage
+      if (currentBgImage && currentBgImage !== 'none') {
+        log('Hero background image already loaded')
+        return
+      }
+
+      const heroImageObserver = new IntersectionObserver(
+        (entries, observer) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              // Load high-resolution background image
+              const webpImage = 'assets/images/hero-bg.webp'
+              const jpgImage = 'assets/images/hero-bg.jpg'
+
+              // Preload images for better performance
+              const img = new Image()
+              img.onload = () => {
+                heroSection.style.backgroundImage = `url('${webpImage}'), url('${jpgImage}')`
+                log('Hero background image loaded successfully')
+              }
+              img.onerror = () => {
+                log('Failed to load hero background image', 'error')
+              }
+              img.src = webpImage
+
+              // Stop observing after loading
+              observer.unobserve(heroSection)
+            }
+          })
+        },
+        {
+          threshold: CONFIG.HERO_IMAGE_THRESHOLD,
+        }
+      )
+
+      heroImageObserver.observe(heroSection)
+      log('Hero background image lazy loading initialized')
+    }
+
+    initHeroImageLazyLoad()
+
+    // ============================================
+    // 3. Parallax Effect (Optional, Performance-Permitting)
+    // ============================================
+
+    /**
+     * Implements subtle parallax scrolling effect on hero background
+     * Only enabled if performance allows (no reduced motion preference)
+     */
+    const initParallaxEffect = () => {
+      // Check for reduced motion preference
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+      if (prefersReducedMotion) {
+        log('Parallax effect disabled due to reduced motion preference')
+        return
+      }
+
+      // Check if device is mobile (disable parallax on mobile for performance)
+      const isMobile = window.innerWidth < CONFIG.MOBILE_BREAKPOINT
+
+      if (isMobile) {
+        log('Parallax effect disabled on mobile devices for performance')
+        return
+      }
+
+      /**
+       * Updates parallax position based on scroll
+       */
+      const updateParallax = () => {
+        const scrolled = window.pageYOffset
+        const heroHeight = heroSection.offsetHeight
+
+        // Only apply parallax while hero is visible
+        if (scrolled < heroHeight) {
+          const yPos = -(scrolled * CONFIG.PARALLAX_SPEED)
+          heroSection.style.backgroundPositionY = `${yPos}px`
+        }
+      }
+
+      // Use requestAnimationFrame for smooth performance
+      let ticking = false
+      const handleScroll = () => {
+        if (!ticking) {
+          window.requestAnimationFrame(() => {
+            updateParallax()
+            ticking = false
+          })
+          ticking = true
+        }
+      }
+
+      window.addEventListener('scroll', handleScroll, { passive: true })
+      log('Parallax effect initialized for hero section')
+    }
+
+    initParallaxEffect()
+
+    // ============================================
+    // 4. Analytics Tracking for CTA Clicks
+    // ============================================
+
+    /**
+     * Tracks CTA button clicks for analytics
+     * Currently logs to console, ready for analytics integration
+     * @param {HTMLElement} button - CTA button element
+     */
+    const trackCtaClick = (button) => {
+      const ctaType = button.getAttribute('data-cta')
+      const ctaHref = button.getAttribute('href')
+      const ctaText = button.textContent.trim()
+
+      // Analytics event data
+      const eventData = {
+        event: 'cta_click',
+        cta_type: ctaType,
+        cta_href: ctaHref,
+        cta_text: ctaText,
+        timestamp: new Date().toISOString(),
+        page_url: window.location.href,
+      }
+
+      // Log to console (ready for analytics integration)
+      console.log('[Analytics] CTA Click:', eventData)
+
+      // Future integration points:
+      // - Google Analytics: gtag('event', 'cta_click', eventData)
+      // - Facebook Pixel: fbq('track', 'Lead', eventData)
+      // - Custom analytics endpoint: fetch('/api/analytics', { method: 'POST', body: JSON.stringify(eventData) })
+
+      log(`CTA click tracked: ${ctaType} - ${ctaText}`)
+    }
+
+    log('Hero section initialized successfully')
+  } catch (error) {
+    log(`Hero section initialization error: ${error.message}`, 'error')
+    console.error(error)
+  }
+}
+
+// ============================================
 // Initialization
 // ============================================
 
@@ -487,6 +722,7 @@ const init = () => {
     initSmoothScroll()
     initLazyLoading()
     initFormValidation()
+    initHeroSection()
 
     log('All features initialized successfully')
   } catch (error) {

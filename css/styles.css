@@ -219,6 +219,138 @@ h6 {
 }
 
 /* ============================================
+   Hero Section Styles
+   ============================================ */
+
+.hero-section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+@supports (background-image: url('image.webp')) {
+  .hero-section {
+    background-image: url('../assets/images/hero-bg.webp');
+  }
+}
+
+@supports not (background-image: url('image.webp')) {
+  .hero-section {
+    background-image: url('../assets/images/hero-bg.jpg');
+  }
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 135, 81, 0.85) 0%,
+    rgba(0, 107, 64, 0.75) 50%,
+    rgba(0, 135, 81, 0.85) 100%
+  );
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  max-width: 800px;
+  padding: 2rem;
+}
+
+.hero-title {
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  line-height: 1.2;
+  margin-bottom: 1rem;
+}
+
+.hero-subtitle {
+  font-size: clamp(1rem, 2.5vw, 1.5rem);
+  color: white;
+  margin-top: 1rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  line-height: 1.5;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.cta-button {
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.3s;
+  text-decoration: none;
+  display: inline-block;
+  cursor: pointer;
+  border: none;
+  font-size: 1rem;
+}
+
+.cta-button-primary {
+  background: white;
+  color: var(--color-nigerian-green);
+}
+
+.cta-button-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  background: #f9f9f9;
+}
+
+.cta-button-secondary {
+  background: transparent;
+  color: white;
+  border: 2px solid white;
+}
+
+.cta-button-secondary:hover {
+  background: white;
+  color: var(--color-nigerian-green);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .hero-content {
+    padding: 1.5rem;
+  }
+
+  .hero-title {
+    font-size: clamp(1.75rem, 8vw, 2.5rem);
+  }
+
+  .hero-subtitle {
+    font-size: clamp(0.875rem, 4vw, 1.125rem);
+  }
+
+  .cta-buttons {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .cta-button {
+    padding: 0.875rem 1.5rem;
+    width: 100%;
+  }
+}
+
+/* ============================================
    Accessibility Enhancements
    ============================================ */
 
