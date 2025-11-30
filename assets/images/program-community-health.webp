@@ -1,0 +1,2 @@
+# Convert existing image to WebP
+   cwebp -q 80 -resize 600 400 input.jpg -o program-community-health.webp

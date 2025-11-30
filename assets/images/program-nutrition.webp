@@ -1,0 +1,2 @@
+# Using cwebp (WebP encoder)
+   cwebp -q 80 -resize 600 400 input-image.jpg -o program-nutrition.webp

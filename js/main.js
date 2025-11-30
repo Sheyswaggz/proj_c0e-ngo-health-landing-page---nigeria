@@ -13,6 +13,7 @@
  * - Feature detection for older browsers
  * - Hero section enhancements (smooth scroll, lazy loading, parallax, analytics)
  * - About section animations and counters
+ * - Programs section filtering and animations
  *
  * @generated-from: task-id:TASK-001 sprint:foundation
  * @modifies: index.html:v1.0.0
@@ -54,6 +55,9 @@ const CONFIG = Object.freeze({
   ABOUT_ANIMATION_THRESHOLD: 0.1,
   COUNTER_DURATION: 2000,
   VALUE_CARD_STAGGER_DELAY: 150,
+  PROGRAMS_ANIMATION_THRESHOLD: 0.1,
+  PROGRAM_CARD_STAGGER_DELAY: 100,
+  FILTER_DEBOUNCE_DELAY: 100,
 })
 
 // ============================================
@@ -960,6 +964,249 @@ const initAboutSection = () => {
 }
 
 // ============================================
+// Programs Section Enhancements
+// ============================================
+
+/**
+ * Initializes programs section functionality
+ * Implements program filtering, scroll animations, and keyboard navigation
+ * @generated-from: task-id:a96fbe17-7d00-4a1a-8f86-545f25f16b6a
+ */
+const initProgramsSection = () => {
+  try {
+    const programsSection = safeQuerySelector('#programs')
+
+    if (!programsSection) {
+      log('Programs section not found - skipping programs initialization', 'warn')
+      return
+    }
+
+    const filterButtons = safeQuerySelectorAll('.filter-btn', programsSection)
+    const programCards = safeQuerySelectorAll('.program-card', programsSection)
+    const resultsRegion = document.createElement('div')
+
+    // Check for reduced motion preference
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    // ============================================
+    // 1. ARIA Live Region for Filter Results
+    // ============================================
+
+    resultsRegion.setAttribute('role', 'status')
+    resultsRegion.setAttribute('aria-live', 'polite')
+    resultsRegion.setAttribute('aria-atomic', 'true')
+    resultsRegion.className = 'sr-only'
+    programsSection.appendChild(resultsRegion)
+
+    // ============================================
+    // 2. Filter Programs by Category
+    // ============================================
+
+    /**
+     * Filters program cards by category
+     * @param {string} category - Category to filter by ('all' or specific category)
+     */
+    const filterPrograms = (category) => {
+      let visibleCount = 0
+
+      programCards.forEach((card) => {
+        const cardCategory = card.getAttribute('data-category')
+        const shouldShow = category === 'all' || cardCategory === category
+
+        if (shouldShow) {
+          card.classList.remove('hidden')
+          card.setAttribute('aria-hidden', 'false')
+          visibleCount++
+        } else {
+          card.classList.add('hidden')
+          card.setAttribute('aria-hidden', 'true')
+        }
+      })
+
+      // Update ARIA live region with results
+      const categoryLabel = category === 'all' ? 'all programs' : `${category} programs`
+      resultsRegion.textContent = `Showing ${visibleCount} ${categoryLabel}`
+
+      // Track filter usage for analytics
+      trackFilterUsage(category, visibleCount)
+
+      log(`Filtered programs: ${category} (${visibleCount} visible)`)
+    }
+
+    // ============================================
+    // 3. Update Active Filter Button
+    // ============================================
+
+    /**
+     * Updates active state of filter buttons
+     * @param {HTMLElement} clickedButton - Button that was clicked
+     */
+    const updateActiveFilter = (clickedButton) => {
+      filterButtons.forEach((button) => {
+        const isActive = button === clickedButton
+        button.classList.toggle('active', isActive)
+        button.setAttribute('aria-pressed', String(isActive))
+      })
+
+      log(`Active filter updated: ${clickedButton.getAttribute('data-filter')}`)
+    }
+
+    // ============================================
+    // 4. Filter Button Click Handlers
+    // ============================================
+
+    const debouncedFilter = debounce((category, button) => {
+      filterPrograms(category)
+      updateActiveFilter(button)
+    }, CONFIG.FILTER_DEBOUNCE_DELAY)
+
+    filterButtons.forEach((button) => {
+      // Set initial ARIA attributes
+      button.setAttribute('role', 'button')
+      button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false')
+
+      // Click handler
+      button.addEventListener('click', () => {
+        const category = button.getAttribute('data-filter')
+        debouncedFilter(category, button)
+      })
+    })
+
+    // ============================================
+    // 5. Keyboard Navigation for Filter Buttons
+    // ============================================
+
+    /**
+     * Handles keyboard navigation for filter buttons
+     * Supports arrow keys, Enter, and Space
+     */
+    const handleFilterKeyboard = (event) => {
+      const currentButton = event.target
+      const currentIndex = Array.from(filterButtons).indexOf(currentButton)
+
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          event.preventDefault()
+          const prevIndex = currentIndex > 0 ? currentIndex - 1 : filterButtons.length - 1
+          filterButtons[prevIndex].focus()
+          break
+
+        case 'ArrowRight':
+        case 'ArrowDown':
+          event.preventDefault()
+          const nextIndex = currentIndex < filterButtons.length - 1 ? currentIndex + 1 : 0
+          filterButtons[nextIndex].focus()
+          break
+
+        case 'Enter':
+        case ' ':
+          event.preventDefault()
+          currentButton.click()
+          break
+
+        case 'Home':
+          event.preventDefault()
+          filterButtons[0].focus()
+          break
+
+        case 'End':
+          event.preventDefault()
+          filterButtons[filterButtons.length - 1].focus()
+          break
+      }
+    }
+
+    filterButtons.forEach((button) => {
+      button.addEventListener('keydown', handleFilterKeyboard)
+      button.setAttribute('tabindex', '0')
+    })
+
+    log(`Keyboard navigation initialized for ${filterButtons.length} filter buttons`)
+
+    // ============================================
+    // 6. Staggered Card Animations on Scroll
+    // ============================================
+
+    /**
+     * Animates program cards with staggered fade-in effect
+     */
+    const animateProgramCards = () => {
+      if (!FEATURES.intersectionObserver) {
+        log('Intersection Observer not supported - skipping card animations', 'warn')
+        return
+      }
+
+      const cardObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const card = entry.target
+              const cards = Array.from(programCards).filter((c) => !c.classList.contains('hidden'))
+              const index = cards.indexOf(card)
+              const delay = prefersReducedMotion ? 0 : index * CONFIG.PROGRAM_CARD_STAGGER_DELAY
+
+              setTimeout(() => {
+                card.classList.add('visible')
+                log(`Program card animated with delay: ${delay}ms`)
+              }, delay)
+
+              cardObserver.unobserve(card)
+            }
+          })
+        },
+        {
+          threshold: CONFIG.PROGRAMS_ANIMATION_THRESHOLD,
+          rootMargin: '0px 0px -50px 0px',
+        }
+      )
+
+      programCards.forEach((card) => {
+        card.classList.add('fade-in-up')
+        cardObserver.observe(card)
+      })
+
+      log(`Staggered animations initialized for ${programCards.length} program cards`)
+    }
+
+    animateProgramCards()
+
+    // ============================================
+    // 7. Analytics Tracking for Filter Usage
+    // ============================================
+
+    /**
+     * Tracks filter usage for analytics
+     * @param {string} category - Category that was filtered
+     * @param {number} resultCount - Number of visible results
+     */
+    const trackFilterUsage = (category, resultCount) => {
+      const eventData = {
+        event: 'program_filter',
+        filter_category: category,
+        result_count: resultCount,
+        timestamp: new Date().toISOString(),
+        page_url: window.location.href,
+      }
+
+      // Log to console (ready for analytics integration)
+      console.log('[Analytics] Program Filter:', eventData)
+
+      // Future integration points:
+      // - Google Analytics: gtag('event', 'program_filter', eventData)
+      // - Custom analytics endpoint: fetch('/api/analytics', { method: 'POST', body: JSON.stringify(eventData) })
+
+      log(`Filter usage tracked: ${category} (${resultCount} results)`)
+    }
+
+    log('Programs section initialized successfully')
+  } catch (error) {
+    log(`Programs section initialization error: ${error.message}`, 'error')
+    console.error(error)
+  }
+}
+
+// ============================================
 // Initialization
 // ============================================
 
@@ -979,6 +1226,7 @@ const init = () => {
     initFormValidation()
     initHeroSection()
     initAboutSection()
+    initProgramsSection()
 
     log('All features initialized successfully')
   } catch (error) {
