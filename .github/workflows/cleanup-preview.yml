@@ -17,7 +17,7 @@ jobs:
     
     steps:
       - name: Log cleanup initiation
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
@@ -40,7 +40,7 @@ jobs:
             core.info(`Preview environment will be automatically removed`);
       
       - name: Post cleanup notification
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
@@ -60,7 +60,7 @@ jobs:
             core.info('Cleanup notification posted to PR');
       
       - name: Log cleanup completion
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
