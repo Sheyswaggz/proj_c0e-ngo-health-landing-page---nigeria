@@ -91,7 +91,7 @@ jobs:
       - name: Install dependencies
         if: steps.check-package.outputs.has_package == 'true'
         run: |
-          npm ci --prefer-offline --no-audit
+          npm install --prefer-offline --no-audit
         continue-on-error: true
       
       # ------------------------------------------------------------------------
