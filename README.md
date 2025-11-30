@@ -11,6 +11,7 @@ A modern, responsive landing page for a Nigerian health-focused NGO, built with 
 - Vanilla JavaScript for interactive elements
 - Docker support for easy deployment
 - Kubernetes manifests for production deployment
+- Automated CI/CD pipeline with GitHub Actions
 
 ## Prerequisites
 
