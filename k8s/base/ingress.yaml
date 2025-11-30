@@ -1,0 +1,84 @@
+# Kubernetes Ingress manifest for NGO Landing Page
+# Provides external HTTPS access with TLS termination, security configurations, and traffic management
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ngo-landing-page-ingress
+  namespace: default
+  labels:
+    app: ngo-landing-page
+    version: v1.0.0
+    component: frontend
+    tier: web
+  annotations:
+    # Description and metadata
+    description: "External ingress for NGO Health Landing Page - Nigeria with TLS and security"
+    
+    # TLS certificate management with cert-manager
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: "http01"
+    
+    # SSL/TLS configuration
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+    
+    # Rate limiting to prevent abuse
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    
+    # Timeout configuration for static content
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    
+    # Request body size limit
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    
+    # CORS configuration for cross-origin requests
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, HEAD, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-max-age: "3600"
+    
+    # Security headers for enhanced protection
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+    
+    # Logging configuration
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "false"
+    
+    # Performance optimization
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$binary_remote_addr"
+    
+spec:
+  # Specify nginx ingress controller class
+  ingressClassName: nginx
+  
+  # TLS configuration with cert-manager integration
+  tls:
+    - hosts:
+        - ngo-health.example.com
+      secretName: ngo-landing-page-tls
+  
+  # Routing rules for the landing page
+  rules:
+    - host: ngo-health.example.com
+      http:
+        paths:
+          # Route all traffic to the landing page service
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ngo-landing-page-service
+                port:
+                  number: 80
