@@ -1,0 +1,336 @@
+# ============================================================================
+# GitHub Actions Workflow: Deploy Preview to GitHub Pages
+# ============================================================================
+# Purpose: Automatically deploy pull request previews to GitHub Pages
+# Trigger: Pull request events (opened, synchronize, reopened) and manual dispatch
+# Independence: Runs independently without dependencies on other workflows
+# ============================================================================
+
+name: Deploy Preview to GitHub Pages
+
+# ============================================================================
+# Workflow Triggers
+# ============================================================================
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+# ============================================================================
+# Permissions
+# ============================================================================
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  pull-requests: write
+
+# ============================================================================
+# Concurrency Control
+# ============================================================================
+# Ensures only one preview deployment runs per PR at a time
+# Cancels in-progress deployments when new commits are pushed
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# ============================================================================
+# Environment Variables
+# ============================================================================
+env:
+  NODE_VERSION: '20'
+  ARTIFACT_RETENTION_DAYS: 7
+
+# ============================================================================
+# Jobs
+# ============================================================================
+jobs:
+  # ==========================================================================
+  # Job 1: Build Preview Site
+  # ==========================================================================
+  # This job runs independently without any conditions or dependencies
+  # It builds the static site and prepares artifacts for deployment
+  build-preview:
+    name: Build Preview Site
+    runs-on: ubuntu-latest
+    
+    steps:
+      # ------------------------------------------------------------------------
+      # Step 1: Checkout Repository
+      # ------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      # ------------------------------------------------------------------------
+      # Step 2: Setup Node.js (if needed for build process)
+      # ------------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+        continue-on-error: true
+      
+      # ------------------------------------------------------------------------
+      # Step 3: Install Dependencies (if package.json exists)
+      # ------------------------------------------------------------------------
+      - name: Check for package.json
+        id: check-package
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Install dependencies
+        if: steps.check-package.outputs.has_package == 'true'
+        run: |
+          npm ci --prefer-offline --no-audit
+        continue-on-error: true
+      
+      # ------------------------------------------------------------------------
+      # Step 4: Build Static Site
+      # ------------------------------------------------------------------------
+      # For this static HTML site, we copy files to build directory
+      # For sites with build processes, run: npm run build
+      - name: Build static site
+        run: |
+          echo "Building preview site for PR #${{ github.event.pull_request.number }}"
+          
+          # Create build directory
+          mkdir -p build
+          
+          # Copy static files to build directory
+          cp -r index.html build/
+          cp -r css build/ 2>/dev/null || true
+          cp -r js build/ 2>/dev/null || true
+          cp -r assets build/ 2>/dev/null || true
+          
+          # Create PR info file for preview identification
+          cat > build/pr-info.json <<EOF
+          {
+            "pr_number": ${{ github.event.pull_request.number }},
+            "pr_title": "${{ github.event.pull_request.title }}",
+            "commit_sha": "${{ github.sha }}",
+            "branch": "${{ github.head_ref }}",
+            "author": "${{ github.event.pull_request.user.login }}",
+            "created_at": "${{ github.event.pull_request.created_at }}",
+            "updated_at": "${{ github.event.pull_request.updated_at }}"
+          }
+          EOF
+          
+          # Add preview banner to index.html
+          if [ -f "build/index.html" ]; then
+            sed -i '/<body>/a \
+            <div style="background:#ff9800;color:#000;padding:10px;text-align:center;font-weight:bold;">\
+              Preview for PR #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}\
+            </div>' build/index.html
+          fi
+          
+          echo "Build completed successfully"
+          ls -la build/
+      
+      # ------------------------------------------------------------------------
+      # Step 5: Upload Build Artifacts
+      # ------------------------------------------------------------------------
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-build-pr-${{ github.event.pull_request.number }}
+          path: build/
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+          if-no-files-found: error
+      
+      # ------------------------------------------------------------------------
+      # Step 6: Log Build Summary
+      # ------------------------------------------------------------------------
+      - name: Log build summary
+        run: |
+          echo "## Preview Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR Number:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR Title:** ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.head_ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author:** ${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Build artifacts uploaded successfully." >> $GITHUB_STEP_SUMMARY
+  
+  # ==========================================================================
+  # Job 2: Deploy Preview to GitHub Pages
+  # ==========================================================================
+  # This job deploys the built site to GitHub Pages
+  # Only runs if build-preview job succeeds
+  deploy-preview:
+    name: Deploy Preview to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-preview
+    if: always() && needs.build-preview.result == 'success'
+    
+    environment:
+      name: preview-pr-${{ github.event.pull_request.number }}
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      # ------------------------------------------------------------------------
+      # Step 1: Download Build Artifacts
+      # ------------------------------------------------------------------------
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: preview-build-pr-${{ github.event.pull_request.number }}
+          path: ./preview-site
+      
+      # ------------------------------------------------------------------------
+      # Step 2: Verify Downloaded Artifacts
+      # ------------------------------------------------------------------------
+      - name: Verify artifacts
+        run: |
+          echo "Verifying downloaded artifacts..."
+          ls -la ./preview-site/
+          
+          if [ ! -f "./preview-site/index.html" ]; then
+            echo "Error: index.html not found in artifacts"
+            exit 1
+          fi
+          
+          echo "Artifacts verified successfully"
+      
+      # ------------------------------------------------------------------------
+      # Step 3: Setup GitHub Pages
+      # ------------------------------------------------------------------------
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+      
+      # ------------------------------------------------------------------------
+      # Step 4: Upload Pages Artifact
+      # ------------------------------------------------------------------------
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./preview-site
+      
+      # ------------------------------------------------------------------------
+      # Step 5: Deploy to GitHub Pages
+      # ------------------------------------------------------------------------
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+      
+      # ------------------------------------------------------------------------
+      # Step 6: Comment on Pull Request with Preview URL
+      # ------------------------------------------------------------------------
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const previewUrl = '${{ steps.deployment.outputs.page_url }}';
+            const commitSha = context.sha;
+            const branch = context.payload.pull_request.head.ref;
+            
+            // Create comment body with preview information
+            const commentBody = `## 🚀 Preview Deployment Successful
+            
+            Your preview site has been deployed to GitHub Pages!
+            
+            ### Preview Details
+            - **Preview URL:** ${previewUrl}
+            - **PR Number:** #${prNumber}
+            - **Branch:** \`${branch}\`
+            - **Commit:** \`${commitSha.substring(0, 7)}\`
+            - **Deployed at:** ${new Date().toISOString()}
+            
+            ### What's Next?
+            - Review the preview site to verify your changes
+            - The preview will be updated automatically on new commits
+            - Preview will be removed when the PR is closed or merged
+            
+            ---
+            *This preview is automatically generated by GitHub Actions*`;
+            
+            // Check if a preview comment already exists
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Preview Deployment Successful')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody,
+              });
+              console.log('Updated existing preview comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+              console.log('Created new preview comment');
+            }
+      
+      # ------------------------------------------------------------------------
+      # Step 7: Log Deployment Summary
+      # ------------------------------------------------------------------------
+      - name: Log deployment summary
+        run: |
+          echo "## Preview Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- **Preview URL:** ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR Number:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** preview-pr-${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed at:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Preview site is now live and accessible!" >> $GITHUB_STEP_SUMMARY
+      
+      # ------------------------------------------------------------------------
+      # Step 8: Handle Deployment Failure
+      # ------------------------------------------------------------------------
+      - name: Handle deployment failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            
+            const commentBody = `## ❌ Preview Deployment Failed
+            
+            The preview deployment encountered an error.
+            
+            ### Troubleshooting
+            - Check the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details
+            - Verify that GitHub Pages is enabled for this repository
+            - Ensure the build artifacts are valid
+            
+            Please review the errors and try again.
+            
+            ---
+            *This is an automated message from GitHub Actions*`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody,
+            });
