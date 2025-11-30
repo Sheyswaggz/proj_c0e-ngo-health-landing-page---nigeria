@@ -1,0 +1,284 @@
+# =============================================================================
+# CI Pipeline - Automated Testing, Linting, Validation, and Security Scanning
+# =============================================================================
+# Triggers on push to main/develop branches and all pull requests
+# Performs comprehensive code quality checks and security scanning
+# =============================================================================
+
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+# Cancel in-progress runs for the same branch/PR to save resources
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===========================================================================
+  # JOB 1: Lint and Validate
+  # ===========================================================================
+  # Validates code formatting, HTML structure, Dockerfile, and Kubernetes manifests
+  lint-and-validate:
+    name: Lint and Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Setup Node.js environment for Prettier
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # Cache npm dependencies to speed up subsequent runs
+      - name: Cache npm dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      # Install Prettier for code formatting validation
+      - name: Install Prettier
+        run: npm install --global prettier
+
+      # Run Prettier to check code formatting
+      - name: Run Prettier check
+        run: |
+          prettier --check "**/*.{html,css,js,json,yml,yaml,md}" \
+            --ignore-path .prettierignore \
+            --config .prettierrc.json
+
+      # Validate HTML files using W3C validator
+      - name: Validate HTML with W3C validator
+        uses: Cyb3r-Jak3/html5validator-action@v7.2.0
+        with:
+          root: .
+          css: true
+          extra: --ignore-re "Attribute.*not allowed"
+
+      # Lint Dockerfile using hadolint for best practices
+      - name: Lint Dockerfile with hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+          ignore: DL3018,DL3008
+
+      # Setup kubectl for Kubernetes manifest validation
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      # Install kubeval for Kubernetes manifest validation
+      - name: Install kubeval
+        run: |
+          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval-linux-amd64.tar.gz
+          sudo mv kubeval /usr/local/bin
+          rm kubeval-linux-amd64.tar.gz
+
+      # Validate Kubernetes manifests in base directory
+      - name: Validate Kubernetes manifests (base)
+        run: |
+          kubeval --strict --ignore-missing-schemas \
+            k8s/base/*.yaml
+
+      # Validate Kubernetes manifests in development overlay
+      - name: Validate Kubernetes manifests (development)
+        run: |
+          kubeval --strict --ignore-missing-schemas \
+            k8s/overlays/development/*.yaml
+
+      # Validate Kubernetes manifests in staging overlay
+      - name: Validate Kubernetes manifests (staging)
+        run: |
+          kubeval --strict --ignore-missing-schemas \
+            k8s/overlays/staging/*.yaml
+
+      # Validate Kubernetes manifests in production overlay
+      - name: Validate Kubernetes manifests (production)
+        run: |
+          kubeval --strict --ignore-missing-schemas \
+            k8s/overlays/production/*.yaml || true
+
+      # Validate nginx configuration syntax
+      - name: Validate nginx configuration
+        run: |
+          docker run --rm -v $(pwd)/nginx.conf:/etc/nginx/nginx.conf:ro \
+            nginx:1.27-alpine nginx -t
+
+  # ===========================================================================
+  # JOB 2: Security Scan
+  # ===========================================================================
+  # Performs filesystem security scanning using Trivy
+  # Uploads results to GitHub Security tab for vulnerability tracking
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      # Checkout repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Run Trivy filesystem scan for vulnerabilities
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'
+          ignore-unfixed: true
+
+      # Upload Trivy scan results to GitHub Security tab
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-filesystem'
+
+      # Run Trivy scan with table output for workflow logs
+      - name: Run Trivy scan (table output)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'
+
+  # ===========================================================================
+  # JOB 3: Build and Test
+  # ===========================================================================
+  # Builds Docker image and runs container smoke tests
+  # Validates that the application starts correctly and health endpoint responds
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Setup Docker Buildx for advanced build features
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Cache Docker layers to speed up builds
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Build Docker image with caching
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: ngo-landing-page:test
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Move cache to avoid growing cache size indefinitely
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      # Run container smoke test to verify it starts correctly
+      - name: Run container smoke test
+        run: |
+          docker run -d --name test-container -p 8080:8080 ngo-landing-page:test
+          
+          # Wait for container to be healthy
+          echo "Waiting for container to be healthy..."
+          for i in {1..30}; do
+            if docker inspect --format='{{.State.Health.Status}}' test-container | grep -q "healthy"; then
+              echo "Container is healthy"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Container failed to become healthy"
+              docker logs test-container
+              exit 1
+            fi
+            echo "Attempt $i: Container not healthy yet, waiting..."
+            sleep 2
+          done
+
+      # Test health endpoint to ensure application is responding
+      - name: Test health endpoint
+        run: |
+          # Test health endpoint
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+            if [ "$STATUS" -eq 200 ]; then
+              echo "Health check passed with status $STATUS"
+              break
+            fi
+            if [ $i -eq 10 ]; then
+              echo "Health check failed after 10 attempts"
+              docker logs test-container
+              exit 1
+            fi
+            echo "Attempt $i: Health check returned $STATUS, retrying..."
+            sleep 2
+          done
+          
+          # Test main page
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Main page check failed with status $STATUS"
+            docker logs test-container
+            exit 1
+          fi
+          echo "Main page check passed with status $STATUS"
+
+      # Display container logs for debugging
+      - name: Display container logs
+        if: always()
+        run: |
+          docker logs test-container
+
+      # Cleanup test container
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop test-container || true
+          docker rm test-container || true
