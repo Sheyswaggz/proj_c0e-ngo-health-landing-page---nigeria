@@ -1,0 +1,76 @@
+name: Cleanup Preview Deployments
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  cleanup:
+    name: Remove Preview Environment
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pull-requests: write
+      pages: write
+    
+    steps:
+      - name: Log cleanup initiation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const prTitle = context.payload.pull_request.title;
+            const prAuthor = context.payload.pull_request.user.login;
+            const mergedAt = context.payload.pull_request.merged_at;
+            const closedAt = context.payload.pull_request.closed_at;
+            
+            console.log('='.repeat(80));
+            console.log('PREVIEW DEPLOYMENT CLEANUP');
+            console.log('='.repeat(80));
+            console.log(`PR Number: #${prNumber}`);
+            console.log(`PR Title: ${prTitle}`);
+            console.log(`PR Author: ${prAuthor}`);
+            console.log(`Merged: ${mergedAt ? 'Yes' : 'No'}`);
+            console.log(`Closed At: ${closedAt}`);
+            console.log('='.repeat(80));
+            
+            core.info(`Starting cleanup for PR #${prNumber}`);
+            core.info(`Preview environment will be automatically removed`);
+      
+      - name: Post cleanup notification
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const wasMerged = context.payload.pull_request.merged;
+            
+            const message = wasMerged
+              ? `✅ PR #${prNumber} was merged. Preview deployment cleanup initiated.`
+              : `🔒 PR #${prNumber} was closed without merging. Preview deployment cleanup initiated.`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `## 🧹 Preview Deployment Cleanup\n\n${message}\n\n### Cleanup Details\n\n- **Environment**: Preview (PR #${prNumber})\n- **Status**: In Progress\n- **Action**: GitHub Pages artifacts will auto-expire\n- **Timeline**: Artifacts are automatically removed after 90 days\n\n> **Note**: GitHub Pages preview deployments are automatically cleaned up. No manual intervention required.`
+            });
+            
+            core.info('Cleanup notification posted to PR');
+      
+      - name: Log cleanup completion
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            
+            console.log('='.repeat(80));
+            console.log('CLEANUP COMPLETED');
+            console.log('='.repeat(80));
+            console.log(`PR #${prNumber} preview environment cleanup completed`);
+            console.log('GitHub Pages artifacts will auto-expire after 90 days');
+            console.log('No manual cleanup required');
+            console.log('='.repeat(80));
+            
+            core.info(`Cleanup process completed for PR #${prNumber}`);

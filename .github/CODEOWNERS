@@ -1,0 +1,37 @@
+# CODEOWNERS
+# This file defines code ownership and automatic review assignment for the repository.
+# When a pull request is opened, GitHub automatically requests reviews from the code owners
+# of the files being changed. Code owners must approve changes before they can be merged
+# if branch protection rules are configured to require code owner reviews.
+#
+# Syntax: <file-pattern> <owner1> <owner2> ...
+# Patterns follow .gitignore syntax. Later matches take precedence over earlier ones.
+#
+# Documentation: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default ownership - All files require review from the developers team
+# This ensures that at least one developer reviews every change unless overridden below
+* @org/developers
+
+# GitHub configuration and workflows
+# DevOps team owns all GitHub-related configuration including Actions workflows,
+# Dependabot configuration, and repository settings. This ensures infrastructure
+# changes are reviewed by team members with appropriate expertise.
+/.github/ @org/devops-team
+
+# Kubernetes manifests and configuration
+# DevOps team owns all Kubernetes resources including base manifests and overlays
+# for development, staging, and production environments. This ensures deployment
+# configurations are reviewed by team members familiar with cluster operations.
+/k8s/ @org/devops-team
+
+# Container configuration
+# DevOps team owns Docker-related files to ensure container builds, multi-stage
+# builds, and runtime configurations follow best practices and security standards.
+/Dockerfile @org/devops-team
+/docker-compose.yml @org/devops-team
+
+# CI/CD workflows (explicit override for clarity)
+# While covered by /.github/, this explicit entry emphasizes that workflow changes
+# require DevOps team approval due to their critical role in the deployment pipeline.
+/.github/workflows/ @org/devops-team

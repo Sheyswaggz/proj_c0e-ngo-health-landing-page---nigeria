@@ -1,0 +1,59 @@
+# Dependabot configuration for automated dependency updates and security patches
+# This configuration manages updates for GitHub Actions workflows and Docker base images
+# Updates are scheduled weekly to balance security with stability
+
+version: 2
+
+updates:
+  # GitHub Actions workflow dependencies
+  # Keeps action versions up-to-date for security and feature improvements
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Africa/Lagos
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+      - automated
+    commit-message:
+      prefix: 'ci'
+      include: scope
+    reviewers:
+      - team-leads
+    # Group minor and patch updates to reduce PR noise
+    groups:
+      github-actions-minor:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  # Docker base image dependencies
+  # Monitors Dockerfile for base image updates and security patches
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:00'
+      timezone: Africa/Lagos
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
+      - security
+      - automated
+    commit-message:
+      prefix: 'build'
+      include: scope
+    reviewers:
+      - team-leads
+    assignees:
+      - devops-team
+    # Rebase strategy ensures clean merge history
+    rebase-strategy: auto
