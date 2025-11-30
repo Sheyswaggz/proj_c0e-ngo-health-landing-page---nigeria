@@ -1,0 +1,9 @@
+# Using ImageMagick
+   convert assets/images/about-team.webp -quality 85 assets/images/about-team.jpg
+   
+   # Using cwebp/dwebp tools
+   dwebp assets/images/about-team.webp -o temp.png
+   convert temp.png -quality 85 assets/images/about-team.jpg
+   
+   # Using online tools
+   # Visit: https://cloudconvert.com/webp-to-jpg
