@@ -1,0 +1,599 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==========================================================================
+  # JOB 1: Build and Push Docker Image
+  # ==========================================================================
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-version: ${{ steps.meta.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=${{ github.repository }}
+            org.opencontainers.image.description=NGO Health Landing Page - Nigeria
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+      
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.version }}
+      
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          retention-days: 90
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+  
+  # ==========================================================================
+  # JOB 2: Deploy to Development Environment
+  # ==========================================================================
+  deploy-development:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'development'
+    
+    environment:
+      name: development
+      url: https://dev.ngo-health.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Configure kubectl with OIDC
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_DEVELOPMENT }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Deploy to development namespace using kustomize
+        run: |
+          cd k8s/overlays/development
+          
+          kubectl kustomize . | kubectl apply -f -
+          
+          kubectl set image deployment/ngo-health-web \
+            nginx=${{ needs.build-and-push.outputs.image-tag }} \
+            -n dev \
+            --record
+          
+          kubectl annotate deployment/ngo-health-web \
+            kubernetes.io/change-cause="Deploy version ${{ needs.build-and-push.outputs.image-version }} from commit ${{ github.sha }}" \
+            -n dev \
+            --overwrite
+      
+      - name: Wait for rollout to complete
+        run: |
+          kubectl rollout status deployment/ngo-health-web -n dev --timeout=10m
+      
+      - name: Verify deployment
+        run: |
+          echo "Checking deployment status..."
+          kubectl get deployment ngo-health-web -n dev
+          kubectl get pods -n dev -l app=ngo-health
+          kubectl get svc ngo-health-web -n dev
+          
+          echo "Waiting for pods to be ready..."
+          kubectl wait --for=condition=ready pod -l app=ngo-health -n dev --timeout=5m
+      
+      - name: Run health checks
+        run: |
+          echo "Running health checks..."
+          
+          SERVICE_IP=$(kubectl get svc ngo-health-web -n dev -o jsonpath='{.spec.clusterIP}')
+          
+          for i in {1..30}; do
+            if kubectl run health-check-$i --image=curlimages/curl:latest --rm -i --restart=Never -n dev -- \
+              curl -f -s http://$SERVICE_IP/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i: Health check failed, retrying in 10 seconds..."
+            sleep 10
+          done
+          
+          echo "Health check failed after 30 attempts"
+          exit 1
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, initiating rollback..."
+          kubectl rollout undo deployment/ngo-health-web -n dev
+          kubectl rollout status deployment/ngo-health-web -n dev --timeout=5m
+          echo "Rollback completed"
+      
+      - name: Notify Slack - Development
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: |
+            Development Deployment: ${{ job.status }}
+            Environment: Development
+            Version: ${{ needs.build-and-push.outputs.image-version }}
+            Commit: ${{ github.sha }}
+            URL: https://dev.ngo-health.example.com
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          channel: '#deployments'
+  
+  # ==========================================================================
+  # JOB 3: Deploy to Staging Environment (Requires Manual Approval)
+  # ==========================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-development]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    
+    environment:
+      name: staging
+      url: https://staging.ngo-health.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Deploy to staging namespace
+        run: |
+          cd k8s/overlays/staging
+          
+          kubectl kustomize . | kubectl apply -f -
+          
+          kubectl set image deployment/ngo-health-web \
+            nginx=${{ needs.build-and-push.outputs.image-tag }} \
+            -n staging \
+            --record
+          
+          kubectl annotate deployment/ngo-health-web \
+            kubernetes.io/change-cause="Deploy version ${{ needs.build-and-push.outputs.image-version }} from commit ${{ github.sha }}" \
+            -n staging \
+            --overwrite
+      
+      - name: Wait for rollout to complete
+        run: |
+          kubectl rollout status deployment/ngo-health-web -n staging --timeout=15m
+      
+      - name: Verify deployment
+        run: |
+          echo "Checking deployment status..."
+          kubectl get deployment ngo-health-web -n staging
+          kubectl get pods -n staging -l app=ngo-health
+          kubectl get svc ngo-health-web -n staging
+          
+          echo "Waiting for pods to be ready..."
+          kubectl wait --for=condition=ready pod -l app=ngo-health -n staging --timeout=5m
+      
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on staging environment..."
+          
+          SERVICE_IP=$(kubectl get svc ngo-health-web -n staging -o jsonpath='{.spec.clusterIP}')
+          
+          echo "Testing health endpoint..."
+          kubectl run smoke-test-health --image=curlimages/curl:latest --rm -i --restart=Never -n staging -- \
+            curl -f -s http://$SERVICE_IP/health
+          
+          echo "Testing main page..."
+          kubectl run smoke-test-main --image=curlimages/curl:latest --rm -i --restart=Never -n staging -- \
+            curl -f -s http://$SERVICE_IP/ | grep -q "NGO Health"
+          
+          echo "Smoke tests passed"
+      
+      - name: Run extended health checks
+        run: |
+          echo "Running extended health checks..."
+          
+          SERVICE_IP=$(kubectl get svc ngo-health-web -n staging -o jsonpath='{.spec.clusterIP}')
+          
+          for i in {1..20}; do
+            if kubectl run health-check-$i --image=curlimages/curl:latest --rm -i --restart=Never -n staging -- \
+              curl -f -s http://$SERVICE_IP/health; then
+              echo "Health check $i passed"
+            else
+              echo "Health check $i failed"
+              exit 1
+            fi
+            sleep 5
+          done
+          
+          echo "All health checks passed"
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment or tests failed, initiating rollback..."
+          kubectl rollout undo deployment/ngo-health-web -n staging
+          kubectl rollout status deployment/ngo-health-web -n staging --timeout=5m
+          echo "Rollback completed"
+      
+      - name: Notify Slack - Staging
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: |
+            Staging Deployment: ${{ job.status }}
+            Environment: Staging
+            Version: ${{ needs.build-and-push.outputs.image-version }}
+            Commit: ${{ github.sha }}
+            URL: https://staging.ngo-health.example.com
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          channel: '#deployments'
+  
+  # ==========================================================================
+  # JOB 4: Deploy to Production (Blue-Green Strategy, Requires Manual Approval)
+  # ==========================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-staging]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
+    
+    environment:
+      name: production
+      url: https://ngo-health.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Implement blue-green deployment strategy
+        id: deploy
+        run: |
+          cd k8s/overlays/production
+          
+          # Determine current active color (blue or green)
+          ACTIVE_COLOR=$(kubectl get svc ngo-health-web-active -n production -o jsonpath='{.spec.selector.color}' 2>/dev/null || echo "blue")
+          NEW_COLOR=$([ "$ACTIVE_COLOR" == "blue" ] && echo "green" || echo "blue")
+          
+          echo "active_color=$ACTIVE_COLOR" >> $GITHUB_OUTPUT
+          echo "new_color=$NEW_COLOR" >> $GITHUB_OUTPUT
+          
+          echo "Current active deployment: $ACTIVE_COLOR"
+          echo "Deploying to: $NEW_COLOR"
+          
+          # Apply base configuration
+          kubectl kustomize . | kubectl apply -f -
+          
+          # Create or update the inactive deployment
+          kubectl set image deployment/ngo-health-web-$NEW_COLOR \
+            nginx=${{ needs.build-and-push.outputs.image-tag }} \
+            -n production \
+            --record || \
+          kubectl create deployment ngo-health-web-$NEW_COLOR \
+            --image=${{ needs.build-and-push.outputs.image-tag }} \
+            -n production
+          
+          # Label the deployment with color
+          kubectl label deployment/ngo-health-web-$NEW_COLOR color=$NEW_COLOR -n production --overwrite
+          
+          # Annotate deployment
+          kubectl annotate deployment/ngo-health-web-$NEW_COLOR \
+            kubernetes.io/change-cause="Blue-Green Deploy version ${{ needs.build-and-push.outputs.image-version }} from commit ${{ github.sha }}" \
+            -n production \
+            --overwrite
+          
+          # Wait for new deployment to be ready
+          kubectl rollout status deployment/ngo-health-web-$NEW_COLOR -n production --timeout=15m
+      
+      - name: Verify new deployment
+        run: |
+          NEW_COLOR="${{ steps.deploy.outputs.new_color }}"
+          
+          echo "Verifying $NEW_COLOR deployment..."
+          kubectl get deployment ngo-health-web-$NEW_COLOR -n production
+          kubectl get pods -n production -l color=$NEW_COLOR
+          
+          echo "Waiting for pods to be ready..."
+          kubectl wait --for=condition=ready pod -l color=$NEW_COLOR -n production --timeout=5m
+      
+      - name: Run production smoke tests on new deployment
+        run: |
+          NEW_COLOR="${{ steps.deploy.outputs.new_color }}"
+          
+          echo "Running smoke tests on $NEW_COLOR deployment..."
+          
+          # Get service IP for new deployment
+          SERVICE_IP=$(kubectl get svc ngo-health-web-$NEW_COLOR -n production -o jsonpath='{.spec.clusterIP}' 2>/dev/null || \
+            kubectl get pods -n production -l color=$NEW_COLOR -o jsonpath='{.items[0].status.podIP}')
+          
+          echo "Testing health endpoint on $NEW_COLOR..."
+          kubectl run smoke-test-health-$NEW_COLOR --image=curlimages/curl:latest --rm -i --restart=Never -n production -- \
+            curl -f -s http://$SERVICE_IP:8080/health
+          
+          echo "Testing main page on $NEW_COLOR..."
+          kubectl run smoke-test-main-$NEW_COLOR --image=curlimages/curl:latest --rm -i --restart=Never -n production -- \
+            curl -f -s http://$SERVICE_IP:8080/ | grep -q "NGO Health"
+          
+          echo "Smoke tests passed on $NEW_COLOR deployment"
+      
+      - name: Switch traffic to new deployment
+        run: |
+          NEW_COLOR="${{ steps.deploy.outputs.new_color }}"
+          
+          echo "Switching production traffic to $NEW_COLOR deployment..."
+          
+          # Update active service selector to point to new color
+          kubectl patch svc ngo-health-web-active -n production \
+            -p "{\"spec\":{\"selector\":{\"color\":\"$NEW_COLOR\"}}}"
+          
+          echo "Traffic successfully switched to $NEW_COLOR"
+      
+      - name: Monitor new deployment
+        run: |
+          NEW_COLOR="${{ steps.deploy.outputs.new_color }}"
+          
+          echo "Monitoring $NEW_COLOR deployment for 120 seconds..."
+          sleep 120
+          
+          # Run health checks on active service
+          SERVICE_IP=$(kubectl get svc ngo-health-web-active -n production -o jsonpath='{.spec.clusterIP}')
+          
+          for i in {1..10}; do
+            if kubectl run health-check-$i --image=curlimages/curl:latest --rm -i --restart=Never -n production -- \
+              curl -f -s http://$SERVICE_IP/health; then
+              echo "Health check $i passed"
+            else
+              echo "Health check $i failed"
+              exit 1
+            fi
+            sleep 10
+          done
+          
+          echo "All health checks passed on $NEW_COLOR deployment"
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          PREVIOUS_COLOR="${{ steps.deploy.outputs.active_color }}"
+          NEW_COLOR="${{ steps.deploy.outputs.new_color }}"
+          
+          echo "Deployment failed, rolling back to $PREVIOUS_COLOR..."
+          
+          # Switch active service back to previous color
+          kubectl patch svc ngo-health-web-active -n production \
+            -p "{\"spec\":{\"selector\":{\"color\":\"$PREVIOUS_COLOR\"}}}"
+          
+          echo "Traffic rolled back to $PREVIOUS_COLOR"
+          
+          # Optionally scale down failed deployment
+          kubectl scale deployment/ngo-health-web-$NEW_COLOR -n production --replicas=0
+          
+          echo "Rollback completed successfully"
+      
+      - name: Create GitHub release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.build-and-push.outputs.image-version }}
+          release_name: Release v${{ needs.build-and-push.outputs.image-version }}
+          body: |
+            ## Production Deployment
+            
+            Successfully deployed to production using blue-green strategy.
+            
+            ### Deployment Details
+            - **Environment**: Production
+            - **Strategy**: Blue-Green
+            - **Active Color**: ${{ steps.deploy.outputs.new_color }}
+            - **Image**: ${{ needs.build-and-push.outputs.image-tag }}
+            - **Commit**: ${{ github.sha }}
+            - **URL**: https://ngo-health.example.com
+            
+            ### Changes
+            - Deployed version ${{ needs.build-and-push.outputs.image-version }}
+            - All health checks passed
+            - Zero-downtime deployment completed
+          draft: false
+          prerelease: false
+      
+      - name: Notify Slack - Production
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: |
+            🚀 Production Deployment: ${{ job.status }}
+            Environment: Production
+            Strategy: Blue-Green
+            Active Color: ${{ steps.deploy.outputs.new_color }}
+            Version: ${{ needs.build-and-push.outputs.image-version }}
+            Commit: ${{ github.sha }}
+            URL: https://ngo-health.example.com
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          channel: '#deployments'
+          mention: 'channel'
+  
+  # ==========================================================================
+  # JOB 5: Notify Slack (Final Summary)
+  # ==========================================================================
+  notify-slack:
+    name: Send Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-development, deploy-staging, deploy-production]
+    if: always()
+    
+    steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          if [ "${{ needs.deploy-production.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=All deployments completed successfully" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.deploy-staging.result }}" == "success" ]; then
+            echo "status=partial" >> $GITHUB_OUTPUT
+            echo "message=Deployed to development and staging" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.deploy-development.result }}" == "success" ]; then
+            echo "status=partial" >> $GITHUB_OUTPUT
+            echo "message=Deployed to development only" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=Deployment failed" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send deployment summary to Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "Deployment Pipeline Summary",
+              "attachments": [{
+                "color": "${{ steps.status.outputs.status == 'success' && 'good' || steps.status.outputs.status == 'partial' && 'warning' || 'danger' }}",
+                "fields": [
+                  {
+                    "title": "Status",
+                    "value": "${{ steps.status.outputs.message }}",
+                    "short": false
+                  },
+                  {
+                    "title": "Development",
+                    "value": "${{ needs.deploy-development.result }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Staging",
+                    "value": "${{ needs.deploy-staging.result }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Production",
+                    "value": "${{ needs.deploy-production.result }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Commit",
+                    "value": "${{ github.sha }}",
+                    "short": true
+                  }
+                ]
+              }]
+            }
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
