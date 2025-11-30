@@ -12,6 +12,7 @@
  * - Form validation helpers for future contact forms
  * - Feature detection for older browsers
  * - Hero section enhancements (smooth scroll, lazy loading, parallax, analytics)
+ * - About section animations and counters
  *
  * @generated-from: task-id:TASK-001 sprint:foundation
  * @modifies: index.html:v1.0.0
@@ -50,6 +51,9 @@ const CONFIG = Object.freeze({
   LOG_PREFIX: '[HealthForAllNG]',
   PARALLAX_SPEED: 0.5,
   HERO_IMAGE_THRESHOLD: 0.1,
+  ABOUT_ANIMATION_THRESHOLD: 0.1,
+  COUNTER_DURATION: 2000,
+  VALUE_CARD_STAGGER_DELAY: 150,
 })
 
 // ============================================
@@ -705,6 +709,257 @@ const initHeroSection = () => {
 }
 
 // ============================================
+// About Section Enhancements
+// ============================================
+
+/**
+ * Initializes about section functionality
+ * Implements scroll animations, animated counters, and lazy loading
+ * @generated-from: task-id:ff7cdfe8-8fd6-4fe7-88ab-d7e97d60c95b
+ */
+const initAboutSection = () => {
+  try {
+    const aboutSection = safeQuerySelector('#about')
+
+    if (!aboutSection) {
+      log('About section not found - skipping about initialization', 'warn')
+      return
+    }
+
+    // Check for reduced motion preference
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    // ============================================
+    // 1. Reusable Intersection Observer Setup
+    // ============================================
+
+    /**
+     * Creates and configures an Intersection Observer
+     * @param {string} selector - CSS selector for elements to observe
+     * @param {Function} callback - Callback function when element intersects
+     * @param {Object} options - Observer options
+     * @returns {IntersectionObserver|null} Observer instance or null
+     */
+    const observeElements = (selector, callback, options = {}) => {
+      if (!FEATURES.intersectionObserver) {
+        log('Intersection Observer not supported - skipping animation', 'warn')
+        return null
+      }
+
+      const elements = safeQuerySelectorAll(selector, aboutSection)
+
+      if (elements.length === 0) {
+        log(`No elements found for selector: ${selector}`, 'warn')
+        return null
+      }
+
+      const defaultOptions = {
+        root: null,
+        rootMargin: '0px',
+        threshold: CONFIG.ABOUT_ANIMATION_THRESHOLD,
+      }
+
+      const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            callback(entry.target, obs)
+          }
+        })
+      }, { ...defaultOptions, ...options })
+
+      elements.forEach((element) => observer.observe(element))
+
+      log(`Observing ${elements.length} elements with selector: ${selector}`)
+      return observer
+    }
+
+    // ============================================
+    // 2. Animated Counter for Impact Statistics
+    // ============================================
+
+    /**
+     * Animates a counter from 0 to target value with easing
+     * @param {HTMLElement} element - Element containing the counter
+     * @param {number} target - Target value to count to
+     * @param {number} duration - Animation duration in milliseconds
+     */
+    const animateCounter = (element, target, duration = CONFIG.COUNTER_DURATION) => {
+      if (!element) {
+        log('Counter element not found', 'error')
+        return
+      }
+
+      // Skip animation if reduced motion is preferred
+      if (prefersReducedMotion) {
+        element.textContent = target.toLocaleString()
+        return
+      }
+
+      const startTime = performance.now()
+      const startValue = 0
+
+      /**
+       * Easing function for smooth animation (easeOutCubic)
+       * @param {number} t - Progress (0 to 1)
+       * @returns {number} Eased value
+       */
+      const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
+
+      /**
+       * Updates counter value using requestAnimationFrame
+       * @param {number} currentTime - Current timestamp
+       */
+      const updateCounter = (currentTime) => {
+        const elapsed = currentTime - startTime
+        const progress = Math.min(elapsed / duration, 1)
+        const easedProgress = easeOutCubic(progress)
+        const currentValue = Math.floor(startValue + (target - startValue) * easedProgress)
+
+        element.textContent = currentValue.toLocaleString()
+
+        if (progress < 1) {
+          requestAnimationFrame(updateCounter)
+        } else {
+          element.textContent = target.toLocaleString()
+          log(`Counter animation completed: ${target}`)
+        }
+      }
+
+      requestAnimationFrame(updateCounter)
+    }
+
+    // ============================================
+    // 3. Fade-in-up Animations for Content
+    // ============================================
+
+    /**
+     * Applies fade-in-up animation to element
+     * @param {HTMLElement} element - Element to animate
+     * @param {IntersectionObserver} observer - Observer instance
+     */
+    const applyFadeInAnimation = (element, observer) => {
+      if (prefersReducedMotion) {
+        element.classList.add('visible')
+        observer.unobserve(element)
+        return
+      }
+
+      element.classList.add('visible')
+      observer.unobserve(element)
+      log(`Fade-in animation applied to: ${element.className}`)
+    }
+
+    // Observe about content and image for fade-in animations
+    observeElements('.about-content, .about-image-container', applyFadeInAnimation)
+
+    // ============================================
+    // 4. Impact Statistics Counter Animation
+    // ============================================
+
+    /**
+     * Triggers counter animation for all stat numbers
+     * @param {HTMLElement} statsContainer - Container element
+     * @param {IntersectionObserver} observer - Observer instance
+     */
+    const triggerCounterAnimations = (statsContainer, observer) => {
+      const statNumbers = safeQuerySelectorAll('.stat-number', statsContainer)
+
+      statNumbers.forEach((statNumber) => {
+        const target = parseInt(statNumber.getAttribute('data-target'), 10)
+
+        if (isNaN(target)) {
+          log(`Invalid counter target for element: ${statNumber.className}`, 'error')
+          return
+        }
+
+        animateCounter(statNumber, target)
+      })
+
+      observer.unobserve(statsContainer)
+      log('Impact statistics counter animations triggered')
+    }
+
+    // Observe impact stats section for counter animation
+    observeElements('.impact-stats', triggerCounterAnimations, { threshold: 0.5 })
+
+    // ============================================
+    // 5. Staggered Animation for Value Cards
+    // ============================================
+
+    /**
+     * Applies staggered fade-in animation to value cards
+     * @param {HTMLElement} valueCard - Value card element
+     * @param {IntersectionObserver} observer - Observer instance
+     */
+    const applyStaggeredAnimation = (valueCard, observer) => {
+      if (prefersReducedMotion) {
+        valueCard.classList.add('visible')
+        observer.unobserve(valueCard)
+        return
+      }
+
+      const valueCards = safeQuerySelectorAll('.value-card', aboutSection)
+      const index = Array.from(valueCards).indexOf(valueCard)
+      const delay = index * CONFIG.VALUE_CARD_STAGGER_DELAY
+
+      setTimeout(() => {
+        valueCard.classList.add('visible')
+        log(`Value card animated with delay: ${delay}ms`)
+      }, delay)
+
+      observer.unobserve(valueCard)
+    }
+
+    // Observe value cards for staggered animation
+    observeElements('.value-card', applyStaggeredAnimation)
+
+    // ============================================
+    // 6. Lazy Loading for About Section Images
+    // ============================================
+
+    /**
+     * Loads image when it enters viewport
+     * @param {HTMLImageElement} img - Image element
+     * @param {IntersectionObserver} observer - Observer instance
+     */
+    const loadAboutImage = (img, observer) => {
+      const src = img.getAttribute('data-src') || img.getAttribute('src')
+
+      if (!src || img.complete) {
+        observer.unobserve(img)
+        return
+      }
+
+      img.addEventListener('load', () => {
+        img.classList.add('loaded')
+        log(`About section image loaded: ${src}`)
+      })
+
+      img.addEventListener('error', () => {
+        log(`Failed to load about section image: ${src}`, 'error')
+      })
+
+      if (img.getAttribute('data-src')) {
+        img.src = src
+        img.removeAttribute('data-src')
+      }
+
+      observer.unobserve(img)
+    }
+
+    // Observe about section images for lazy loading
+    observeElements('.about-image, .value-icon', loadAboutImage, {
+      rootMargin: CONFIG.LAZY_LOAD_MARGIN,
+    })
+
+    log('About section initialized successfully')
+  } catch (error) {
+    log(`About section initialization error: ${error.message}`, 'error')
+    console.error(error)
+  }
+}
+
+// ============================================
 // Initialization
 // ============================================
 
@@ -723,6 +978,7 @@ const init = () => {
     initLazyLoading()
     initFormValidation()
     initHeroSection()
+    initAboutSection()
 
     log('All features initialized successfully')
   } catch (error) {
