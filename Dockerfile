@@ -3,7 +3,7 @@
 # ============================================================================
 # Stage 1: Base nginx image with security hardening
 # ============================================================================
-FROM nginx:1.27-alpine AS base
+FROM nginx:1.29-alpine AS base
 
 # Create necessary directories and set permissions using existing nginx user
 RUN mkdir -p /var/cache/nginx /var/log/nginx /var/run && \
