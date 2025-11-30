@@ -22,7 +22,7 @@
     <meta property="og:url" content="https://healthforallng.org" />
     <meta
       property="og:image"
-      content="https://healthforallng.org/images/og-image.jpg"
+      content="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&q=80"
     />
 
     <!-- Twitter Card -->
@@ -39,11 +39,11 @@
     <!-- Favicon placeholder -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 
-    <!-- Tailwind CSS CDN v3.4+ -->
-    <link
-      href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css"
-      rel="stylesheet"
-    />
+    <!-- Tailwind CSS CDN via Script -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css" />
 
     <!-- Critical inline styles for Nigerian theme -->
     <style>
@@ -130,7 +130,7 @@
       role="banner"
       aria-label="Hero section with mission statement"
       data-section="hero"
-      style="background-image: url('assets/images/hero-bg.webp'), url('assets/images/hero-bg.jpg')"
+      style="background-image: url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1920&q=80')"
     >
       <div class="hero-overlay" aria-hidden="true"></div>
       <div class="hero-content">
@@ -226,16 +226,13 @@
               </article>
             </div>
             <div class="about-image-container">
-              <picture>
-                <source srcset="assets/images/about-team.webp" type="image/webp" />
-                <img
-                  src="assets/images/about-team.jpg"
-                  alt="Health for All Nigeria team members working with community members in a rural Nigerian village"
-                  class="about-image"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </picture>
+              <img
+                src="https://images.unsplash.com/photo-1631815588090-d4bfec5b1ccb?w=800&q=80"
+                alt="Health for All Nigeria team members working with community members in a rural Nigerian village"
+                class="about-image"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
           </div>
           <div class="impact-stats">
@@ -256,7 +253,7 @@
             <div class="value-card">
               <img
                 class="value-icon"
-                src="assets/icons/mission-icon.svg"
+                src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=200&q=80"
                 alt="Mission icon"
                 loading="lazy"
               />
@@ -268,7 +265,7 @@
             <div class="value-card">
               <img
                 class="value-icon"
-                src="assets/icons/vision-icon.svg"
+                src="https://images.unsplash.com/photo-1559757175-5700dde675bc?w=200&q=80"
                 alt="Vision icon"
                 loading="lazy"
               />
@@ -281,7 +278,7 @@
             <div class="value-card">
               <img
                 class="value-icon"
-                src="assets/icons/values-icon.svg"
+                src="https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=200&q=80"
                 alt="Values icon"
                 loading="lazy"
               />
@@ -313,7 +310,7 @@
             <article class="program-card" data-category="maternal">
               <img
                 class="program-image"
-                src="assets/images/program-maternal-health.webp"
+                src="https://images.unsplash.com/photo-1584515933487-779824d29309?w=600&q=80"
                 alt="Maternal health program"
                 loading="lazy"
               />
@@ -339,7 +336,7 @@
             <article class="program-card" data-category="child">
               <img
                 class="program-image"
-                src="assets/images/program-child-health.webp"
+                src="https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=600&q=80"
                 alt="Child health program"
                 loading="lazy"
               />
@@ -365,7 +362,7 @@
             <article class="program-card" data-category="prevention">
               <img
                 class="program-image"
-                src="assets/images/program-disease-prevention.webp"
+                src="https://images.unsplash.com/photo-1631815588090-d4bfec5b1ccb?w=600&q=80"
                 alt="Disease prevention program"
                 loading="lazy"
               />
@@ -391,7 +388,7 @@
             <article class="program-card" data-category="child">
               <img
                 class="program-image"
-                src="assets/images/program-nutrition.webp"
+                src="https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=600&q=80"
                 alt="Nutrition program"
                 loading="lazy"
               />
@@ -417,7 +414,7 @@
             <article class="program-card" data-category="prevention">
               <img
                 class="program-image"
-                src="assets/images/program-mental-health.webp"
+                src="https://images.unsplash.com/photo-1573497491208-6b1acb260507?w=600&q=80"
                 alt="Mental health program"
                 loading="lazy"
               />
@@ -443,7 +440,7 @@
             <article class="program-card" data-category="prevention">
               <img
                 class="program-image"
-                src="assets/images/program-community-health.webp"
+                src="https://images.unsplash.com/photo-1609188076864-c35269136dd3?w=600&q=80"
                 alt="Community health program"
                 loading="lazy"
               />
@@ -664,5 +661,8 @@
         })
       })
     </script>
+
+    <!-- External JavaScript -->
+    <script src="js/main.js"></script>
   </body>
 </html>
