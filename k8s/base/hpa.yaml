@@ -1,0 +1,67 @@
+# Horizontal Pod Autoscaler for NGO Landing Page
+# Automatically scales pods based on CPU and memory utilization
+# Ensures optimal resource usage and application availability
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ngo-landing-page-hpa
+  labels:
+    app: ngo-landing-page
+    component: frontend
+    tier: web
+  annotations:
+    description: "Autoscaler for NGO landing page deployment"
+spec:
+  # Target deployment to scale
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ngo-landing-page-deployment
+  
+  # Replica boundaries
+  minReplicas: 3    # Minimum replicas for high availability
+  maxReplicas: 10   # Maximum replicas to prevent resource exhaustion
+  
+  # Scaling metrics
+  metrics:
+    # CPU-based autoscaling
+    # Scales up when average CPU utilization exceeds 70%
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    
+    # Memory-based autoscaling
+    # Scales up when average memory utilization exceeds 80%
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  
+  # Scaling behavior configuration
+  behavior:
+    # Scale down behavior
+    # Conservative scale-down to prevent flapping
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 minutes before scaling down
+      policies:
+        # Remove maximum 1 pod per minute
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Min  # Use the policy that results in fewer pods removed
+    
+    # Scale up behavior
+    # Aggressive scale-up for quick response to traffic spikes
+    scaleUp:
+      stabilizationWindowSeconds: 0  # Scale up immediately when needed
+      policies:
+        # Add up to 100% of current pods (double) per minute
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+      selectPolicy: Max  # Use the policy that results in more pods added
