@@ -71,3 +71,28 @@ The About section tells the organization's story and establishes credibility thr
 **Updating Organization History and Mission/Vision:**
 
 1. **Edit Story Content** (`index.html` lines 150-165):
+
+### Health Programs Section
+
+The Health Programs section showcases the NGO's key health initiatives and programs, allowing visitors to discover and understand the various ways the organization serves Nigerian communities.
+
+#### Purpose and Structure
+
+- **Program Discovery**: Presents all health initiatives in an organized, visually appealing format
+- **Category Filtering**: Enables visitors to filter programs by health focus area (maternal health, child health, disease prevention, etc.)
+- **Impact Metrics**: Displays quantifiable results for each program to demonstrate effectiveness
+- **Responsive Grid Layout**: Adapts seamlessly from 1 column (mobile) to 2 columns (tablet) to 3 columns (desktop)
+- **Accessibility Features**: Full keyboard navigation and screen reader support
+
+#### Adding New Program Cards
+
+To add a new health program to the section:
+
+1. **Prepare Program Image**:
+   - Dimensions: 800x600px (4:3 aspect ratio)
+   - Format: WebP (< 100KB)
+   - Content: Should feature the program in action or beneficiaries
+   - Name: `program-[category-name].webp`
+   - Place in: `assets/images/` directory
+
+2. **Add HTML Structure** (in `index.html` within `.programs-grid`):
