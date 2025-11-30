@@ -1,0 +1,36 @@
+# Kubernetes Service manifest for NGO Landing Page
+# Provides internal load balancing and service discovery for the application pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: ngo-landing-page-service
+  namespace: default
+  labels:
+    app: ngo-landing-page
+    version: v1.0.0
+    component: frontend
+    tier: web
+  annotations:
+    description: "Internal service for NGO Health Landing Page - Nigeria"
+    service.kubernetes.io/topology-aware-hints: "auto"
+spec:
+  # ClusterIP type for internal cluster communication only
+  type: ClusterIP
+  
+  # Selector to match pods with these labels
+  selector:
+    app: ngo-landing-page
+  
+  # Port configuration
+  ports:
+    - name: http
+      port: 80              # Service port exposed within cluster
+      targetPort: 8080      # Container port (nginx listening on 8080)
+      protocol: TCP
+  
+  # Session affinity configuration
+  # ClientIP ensures requests from same client go to same pod
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours session timeout
