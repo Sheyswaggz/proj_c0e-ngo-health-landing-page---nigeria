@@ -50,3 +50,24 @@ To replace the placeholder hero images with actual NGO images:
    - Name files: `hero-bg.webp` and `hero-bg.jpg`
 
 2. **Replace files**:
+   - Place optimized images in `assets/images/` directory
+   - Ensure filenames match exactly: `hero-bg.webp` and `hero-bg.jpg`
+   - The hero section will automatically use WebP with JPEG fallback
+
+### About Section
+
+The About section tells the organization's story and establishes credibility through compelling narrative, impact statistics, and core values.
+
+#### Purpose and Structure
+
+- **Organization Story**: Communicates the NGO's founding, journey, and commitment to healthcare equity
+- **Mission & Vision**: Clearly articulates the organization's purpose and aspirations
+- **Impact Statistics**: Displays quantifiable achievements with animated counters
+- **Core Values**: Presents organizational principles with icons and descriptions
+- **Team Image**: Features authentic photos of team members and community work
+
+#### Content Customization
+
+**Updating Organization History and Mission/Vision:**
+
+1. **Edit Story Content** (`index.html` lines 150-165):
