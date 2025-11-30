@@ -1,0 +1,5 @@
+# Using ImageMagick to convert an existing image
+   convert input.jpg -resize 600x400^ -gravity center -extent 600x400 -quality 80 program-disease-prevention.webp
+   
+   # Using cwebp (WebP encoder)
+   cwebp -q 80 -resize 600 400 input.jpg -o program-disease-prevention.webp
