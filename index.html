@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Nigerian health NGO providing accessible healthcare information and resources to underserved communities across Nigeria."
+    />
+    <title>Health for All Nigeria | Accessible Healthcare Information</title>
+
+    <!-- Open Graph for social media -->
+    <meta property="og:title" content="Health for All Nigeria" />
+    <meta
+      property="og:description"
+      content="Providing accessible healthcare information and resources to underserved communities across Nigeria."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://healthforallng.org" />
+    <meta
+      property="og:image"
+      content="https://healthforallng.org/images/og-image.jpg"
+    />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Health for All Nigeria" />
+    <meta
+      name="twitter:description"
+      content="Accessible healthcare information for Nigerian communities."
+    />
+
+    <!-- Theme color - Nigerian green (#008751) -->
+    <meta name="theme-color" content="#008751" />
+
+    <!-- Favicon placeholder -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+    <!-- Tailwind CSS CDN v3.4+ -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Critical inline styles for Nigerian theme -->
+    <style>
+      :root {
+        /* Nigerian flag colors */
+        --color-nigerian-green: #008751;
+        --color-white: #ffffff;
+        --color-text-dark: #1a1a1a;
+        --color-gray-light: #f5f5f5;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, sans-serif;
+        color: var(--color-text-dark);
+        background-color: var(--color-white);
+      }
+
+      .skip-link {
+        position: absolute;
+        top: -40px;
+        left: 0;
+        background: var(--color-nigerian-green);
+        color: var(--color-white);
+        padding: 8px;
+        text-decoration: none;
+        z-index: 100;
+      }
+
+      .skip-link:focus {
+        top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Skip navigation for accessibility -->
+    <a href="#main" class="skip-link">Skip to main content</a>
+
+    <!-- Semantic header with navigation -->
+    <header role="banner" class="bg-white shadow-sm">
+      <nav
+        role="navigation"
+        aria-label="Main navigation"
+        class="container mx-auto px-4 py-4"
+      >
+        <div class="flex items-center justify-between">
+          <div class="text-2xl font-bold" style="color: var(--color-nigerian-green)">
+            Health for All NG
+          </div>
+          <ul role="list" class="flex space-x-6 list-none m-0 p-0">
+            <li>
+              <a
+                href="#main"
+                aria-current="page"
+                class="text-gray-700 hover:text-green-700 no-underline"
+                >Home</a
+              >
+            </li>
+            <li>
+              <a href="#about" class="text-gray-700 hover:text-green-700 no-underline"
+                >About</a
+              >
+            </li>
+            <li>
+              <a href="#services" class="text-gray-700 hover:text-green-700 no-underline"
+                >Services</a
+              >
+            </li>
+            <li>
+              <a href="#contact" class="text-gray-700 hover:text-green-700 no-underline"
+                >Contact</a
+              >
+            </li>
+          </ul>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Main content with landmark -->
+    <main id="main" role="main">
+      <!-- Hero section -->
+      <section
+        aria-labelledby="hero-title"
+        class="py-20 px-4"
+        style="background-color: var(--color-nigerian-green)"
+      >
+        <div class="container mx-auto text-center">
+          <h1 id="hero-title" class="text-4xl md:text-5xl font-bold mb-6 text-white">
+            Accessible Healthcare for Every Nigerian
+          </h1>
+          <p class="text-xl md:text-2xl mb-8 text-white max-w-3xl mx-auto">
+            Empowering underserved communities with vital health information and resources
+            across Nigeria.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href="#services"
+              class="inline-block bg-white text-green-700 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors no-underline"
+              >Explore Services</a
+            >
+            <a
+              href="#contact"
+              class="inline-block bg-transparent border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-700 transition-colors no-underline"
+              >Get Involved</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <!-- About section placeholder -->
+      <section
+        id="about"
+        aria-labelledby="about-title"
+        class="py-16 px-4 bg-gray-50"
+      >
+        <div class="container mx-auto">
+          <h2 id="about-title" class="text-3xl font-bold mb-6 text-center">
+            Our Mission
+          </h2>
+          <div class="max-w-3xl mx-auto text-center">
+            <p class="text-lg text-gray-700 mb-4">
+              We are dedicated to improving healthcare access and outcomes in underserved
+              Nigerian communities through education, resources, and community engagement.
+            </p>
+            <p class="text-lg text-gray-700">
+              Our mobile-first approach ensures that vital health information reaches
+              everyone, regardless of connectivity or location.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Services section placeholder -->
+      <section id="services" aria-labelledby="services-title" class="py-16 px-4">
+        <div class="container mx-auto">
+          <h2 id="services-title" class="text-3xl font-bold mb-12 text-center">
+            Our Services
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <article class="bg-white p-6 rounded-lg shadow-md">
+              <h3 class="text-xl font-semibold mb-3" style="color: var(--color-nigerian-green)">
+                Health Education
+              </h3>
+              <p class="text-gray-700">
+                Accessible health information and educational resources for communities
+                across Nigeria.
+              </p>
+            </article>
+            <article class="bg-white p-6 rounded-lg shadow-md">
+              <h3 class="text-xl font-semibold mb-3" style="color: var(--color-nigerian-green)">
+                Community Outreach
+              </h3>
+              <p class="text-gray-700">
+                Direct engagement with underserved communities to provide healthcare support
+                and guidance.
+              </p>
+            </article>
+            <article class="bg-white p-6 rounded-lg shadow-md">
+              <h3 class="text-xl font-semibold mb-3" style="color: var(--color-nigerian-green)">
+                Resource Connection
+              </h3>
+              <p class="text-gray-700">
+                Connecting individuals with healthcare facilities, services, and support
+                networks.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Contact section placeholder -->
+      <section
+        id="contact"
+        aria-labelledby="contact-title"
+        class="py-16 px-4 bg-gray-50"
+      >
+        <div class="container mx-auto max-w-2xl">
+          <h2 id="contact-title" class="text-3xl font-bold mb-8 text-center">
+            Get in Touch
+          </h2>
+          <p class="text-center text-gray-700 mb-8">
+            Have questions or want to get involved? We'd love to hear from you.
+          </p>
+          <div class="text-center">
+            <a
+              href="mailto:info@healthforallng.org"
+              class="inline-block bg-green-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-green-800 transition-colors no-underline"
+              >Contact Us</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Semantic footer -->
+    <footer role="contentinfo" class="bg-gray-800 text-white py-8 px-4">
+      <div class="container mx-auto text-center">
+        <p class="mb-4">&copy; 2024 Health for All Nigeria. All rights reserved.</p>
+        <p class="text-gray-400 text-sm">
+          Committed to accessible healthcare for every Nigerian community.
+        </p>
+      </div>
+    </footer>
+
+    <!-- Inline script for future interactivity -->
+    <script>
+      // Future interactivity placeholder
+      // Mobile menu toggle, form validation, and dynamic content loading will be added here
+
+      // Log page load for development
+      console.log('Health for All Nigeria - Landing page loaded successfully')
+
+      // Basic smooth scroll for anchor links
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener('click', function (e) {
+          const href = this.getAttribute('href')
+          if (href !== '#' && href !== '#main') {
+            e.preventDefault()
+            const target = document.querySelector(href)
+            if (target) {
+              target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              })
+            }
+          }
+        })
+      })
+    </script>
+  </body>
+</html>
