@@ -1,0 +1,10 @@
+# Using cwebp (WebP encoder)
+   cwebp -q 80 -resize 600 400 input-image.jpg -o program-mental-health.webp
+   
+   # Using ImageMagick
+   convert input-image.jpg -resize 600x400 -quality 80 program-mental-health.webp
+   
+   # Using online tools
+   # - Squoosh.app
+   # - CloudConvert
+   # - TinyPNG
