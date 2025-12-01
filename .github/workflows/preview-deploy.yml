@@ -182,7 +182,7 @@ jobs:
       # Step 1: Download Build Artifacts
       # ------------------------------------------------------------------------
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: preview-build-pr-${{ github.event.pull_request.number }}
           path: ./preview-site
