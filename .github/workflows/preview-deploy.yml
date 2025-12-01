@@ -214,7 +214,7 @@ jobs:
       # Step 4: Upload Pages Artifact
       # ------------------------------------------------------------------------
       - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./preview-site
       
